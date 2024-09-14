@@ -1,4 +1,4 @@
-from prometheus_client import generate_latest
+#from prometheus_client import generate_latest
 import streamlit as st
 import pandas as pd
 import os
