@@ -14,7 +14,7 @@ st.title('📊  AutoVizAi')
 
 # Sidebar options
 selected_option = st.sidebar.radio("Select an option", 
-                                   ['Visualization', 'Info', 'Sample', 'Stats', 'Missing Values', 'Duplicate Values', 'Correlation Heatmap', 'Pair Plot', 'Feature Engineering'])
+                                   ['Visualization', 'Sample', 'Stats', 'Missing Values', 'Duplicate Values', 'Correlation Heatmap', 'Feature Engineering'])
 
 # File uploader
 uploaded_file = st.file_uploader("Choose a file")
@@ -39,31 +39,48 @@ if uploaded_file is not None:
 
         # Customization options for the plot
         st.write("📊 **Customize Your Plot**")
-        palette = st.color_picker("Choose a plot color")
+        palette = st.color_picker("Choose a plot color", "#66b3ff")
         fig_size = st.slider("Figure Size (Width, Height)", min_value=4, max_value=12, value=(6, 4))
+        markers = st.checkbox('Add markers to the plot', value=True)
+        gridlines = st.checkbox('Show gridlines', value=True)
 
         # Generate the plot based on user selection
         if st.button('Generate Plot'):
-
+            # Create the figure and axis objects
             fig, ax = plt.subplots(figsize=fig_size)
 
+            # Advanced Plot Generation
             if plot_type == 'Line Plot':
-                sns.lineplot(x=df[x_axis], y=df[y_axis], ax=ax, color=palette)
+                sns.lineplot(x=df[x_axis], y=df[y_axis], ax=ax, color=palette, marker='o' if markers else None)
             elif plot_type == 'Bar Chart':
-                sns.barplot(x=df[x_axis], y=df[y_axis], ax=ax, color=palette)
+                sns.barplot(x=df[x_axis], y=df[y_axis], ax=ax, palette='coolwarm')
             elif plot_type == 'Scatter Plot':
-                sns.scatterplot(x=df[x_axis], y=df[y_axis], ax=ax, color=palette)
+                sns.scatterplot(x=df[x_axis], y=df[y_axis], ax=ax, color=palette, marker='o' if markers else 'x')
             elif plot_type == 'Distribution Plot':
                 sns.histplot(df[x_axis], kde=True, ax=ax, color=palette)
                 y_axis = 'Density'
             elif plot_type == 'Count Plot':
-                sns.countplot(x=df[x_axis], ax=ax, color=palette)
+                sns.countplot(x=df[x_axis], ax=ax, palette='Set2')
                 y_axis = 'Count'
 
-            # Adjust labels and title
-            plt.title(f'{plot_type} of {y_axis} vs {x_axis}', fontsize=14)
-            plt.xlabel(x_axis, fontsize=12)
-            plt.ylabel(y_axis, fontsize=12)
+            # Add gridlines if checked
+            if gridlines:
+                ax.grid(True, linestyle='--', alpha=0.7)
+
+            # Customize Title and Labels
+            ax.set_title(f'{plot_type} of {y_axis} vs {x_axis}', fontsize=16, color='darkblue', fontweight='bold')
+            ax.set_xlabel(x_axis, fontsize=12, fontweight='bold')
+            ax.set_ylabel(y_axis, fontsize=12, fontweight='bold')
+
+            # Advanced Formatting
+            ax.tick_params(axis='x', labelsize=10, rotation=45)  # Adjust x-axis label size and rotate
+            ax.tick_params(axis='y', labelsize=10)               # Adjust y-axis label size
+
+            # Add annotations for better insights
+            if plot_type in ['Bar Chart', 'Count Plot']:
+                for p in ax.patches:
+                    ax.annotate(f'{p.get_height():.2f}', (p.get_x() + p.get_width() / 2, p.get_height()), 
+                                ha='center', va='center', xytext=(0, 5), textcoords='offset points', color='black')
 
             # Show the results
             st.pyplot(fig)
@@ -72,12 +89,6 @@ if uploaded_file is not None:
             if st.button("Download Plot as PNG"):
                 fig.savefig('plot.png')
                 st.write("Plot saved as plot.png!")
-
-    elif selected_option == 'Info':
-        # Display dataset information
-        st.subheader("📄 Dataset Information")
-        buffer = df.info(buf=None)
-        st.text(buffer)
 
     elif selected_option == 'Sample':
         # Display dataset head
@@ -116,42 +127,55 @@ if uploaded_file is not None:
     elif selected_option == 'Correlation Heatmap':
         # Correlation heatmap for numerical features
         st.subheader("🔗 Correlation Heatmap")
-        corr = df.corr()
-        fig, ax = plt.subplots(figsize=(10, 6))
-        sns.heatmap(corr, annot=True, cmap='coolwarm', ax=ax)
-        st.pyplot(fig)
-
-    elif selected_option == 'Pair Plot':
-        # Pairplot to visualize relationships between numerical features
-        st.subheader("📊 Pair Plot")
-        st.write("A pair plot visualizes relationships between multiple variables.")
-        columns = st.multiselect("Select Columns for Pair Plot", options=df.columns.tolist(), default=df.select_dtypes(include=np.number).columns.tolist())
         
-        if st.button("Generate Pair Plot"):
-            sns.pairplot(df[columns], diag_kind='kde', palette='coolwarm')
-            st.pyplot()
-
+        # Select only numeric columns for correlation
+        numeric_df = df.select_dtypes(include=np.number)
+        
+        # Check if there are any numeric columns
+        if not numeric_df.empty:
+            corr = numeric_df.corr()
+            fig, ax = plt.subplots(figsize=(10, 6))
+            sns.heatmap(corr, annot=True, cmap='coolwarm', ax=ax)
+            st.pyplot(fig)
+        else:
+            st.write("No numeric columns available for correlation.")
+    
     elif selected_option == 'Feature Engineering':
-        # Feature engineering options
         st.subheader("🛠️ Feature Engineering")
         st.write("Transform features for better modeling:")
+
         feature_option = st.radio("Select Feature Engineering Option", ['Log Transformation', 'Binarization', 'Standardization'])
-        
+
         if feature_option == 'Log Transformation':
             log_col = st.selectbox("Select Column for Log Transformation", options=df.columns)
-            df[log_col + '_log'] = np.log(df[log_col] + 1)
-            st.write(f"Log transformation applied to {log_col}.")
-            st.write(df.head())
-        
+            
+            # Check if the column is numeric
+            if pd.api.types.is_numeric_dtype(df[log_col]):
+                df[log_col + '_log'] = np.log(df[log_col] + 1)
+                st.write(f"Log transformation applied to {log_col}.")
+                st.write(df[[log_col, log_col + '_log']].head())
+            else:
+                st.error(f"Log transformation can only be applied to numeric columns. '{log_col}' is not numeric.")
+
         elif feature_option == 'Binarization':
             bin_col = st.selectbox("Select Column for Binarization", options=df.columns)
-            threshold = st.slider("Select Threshold", min_value=float(df[bin_col].min()), max_value=float(df[bin_col].max()))
-            df[bin_col + '_bin'] = (df[bin_col] > threshold).astype(int)
-            st.write(f"Binarization applied to {bin_col} with threshold {threshold}.")
-            st.write(df.head())
-        
+            
+            # Check if the column is numeric before binarization
+            if pd.api.types.is_numeric_dtype(df[bin_col]):
+                threshold = st.slider("Select Threshold", min_value=float(df[bin_col].min()), max_value=float(df[bin_col].max()))
+                df[bin_col + '_bin'] = (df[bin_col] > threshold).astype(int)
+                st.write(f"Binarization applied to {bin_col} with threshold {threshold}.")
+                st.write(df[[bin_col, bin_col + '_bin']].head())
+            else:
+                st.error(f"Binarization can only be applied to numeric columns. '{bin_col}' is not numeric.")
+
         elif feature_option == 'Standardization':
             std_col = st.selectbox("Select Column for Standardization", options=df.columns)
-            df[std_col + '_std'] = (df[std_col] - df[std_col].mean()) / df[std_col].std()
-            st.write(f"Standardization applied to {std_col}.")
-            st.write(df.head())
+            
+            # Check if the column is numeric before standardization
+            if pd.api.types.is_numeric_dtype(df[std_col]):
+                df[std_col + '_std'] = (df[std_col] - df[std_col].mean()) / df[std_col].std()
+                st.write(f"Standardization applied to {std_col}.")
+                st.write(df[[std_col, std_col + '_std']].head())
+            else:
+                st.error(f"Standardization can only be applied to numeric columns. '{std_col}' is not numeric.")
